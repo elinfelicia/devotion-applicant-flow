@@ -43,7 +43,12 @@ Deno.serve(async (req) => {
     .select("role")
     .eq("id", user.id)
     .single();
-  console.log("[create-account] callerProfile:", JSON.stringify(callerProfile), "callerProfileErr:", callerProfileErr?.message);
+  console.log(
+    "[create-account] callerProfile:",
+    JSON.stringify(callerProfile),
+    "callerProfileErr:",
+    callerProfileErr?.message,
+  );
   if (callerProfile?.role !== "admin") return json({ error: "Forbidden" }, 403);
 
   // --- 2. Parse and validate the body ---
