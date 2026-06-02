@@ -53,6 +53,7 @@ function JobsPage() {
     const { data, error } = await supabase
       .from("jobs")
       .select("*")
+      .eq("customer_id", currentCustomerId)
       .order("created_at", { ascending: false });
     setLoading(false);
     if (error) return toast.error(error.message);

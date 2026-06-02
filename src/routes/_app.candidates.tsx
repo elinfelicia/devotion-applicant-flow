@@ -58,40 +58,37 @@ function CandidatesPage() {
   const [search, setSearch] = useState("");
   const [dialogOpen, setDialogOpen] = useState(false);
 
-  const load = async () => {
-    if (!currentCustomerId) return;
+  const load = async (customerId: string) => {
     const [{ data: cands }, { data: js }] = await Promise.all([
       supabase
         .from("candidates")
         .select("*")
+        .eq("customer_id", customerId)
         .order("created_at", { ascending: false }),
-      supabase.from("jobs").select("id, title").order("title"),
+      supabase.from("jobs").select("id, title").eq("customer_id", customerId).order("title"),
     ]);
     setCandidates((cands as Candidate[]) ?? []);
     setJobs((js as Job[]) ?? []);
   };
 
   useEffect(() => {
-    load();
+    if (!currentCustomerId) return;
+    setFilterJob("all");
+    setSearch("");
+    load(currentCustomerId);
   }, [currentCustomerId]);
 
-  const jobsById = useMemo(
-    () => Object.fromEntries(jobs.map((j) => [j.id, j.title])),
-    [jobs],
-  );
+  const jobsById = useMemo(() => Object.fromEntries(jobs.map((j) => [j.id, j.title])), [jobs]);
 
   const filtered = useMemo(() => {
     return candidates.filter((c) => {
       if (filterJob !== "all" && c.job_id !== filterJob) return false;
-      if (search && !c.name.toLowerCase().includes(search.toLowerCase()))
-        return false;
+      if (search && !c.name.toLowerCase().includes(search.toLowerCase())) return false;
       return true;
     });
   }, [candidates, filterJob, search]);
 
-  const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
-  );
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }));
 
   const onDragEnd = async (e: DragEndEvent) => {
     const id = e.active.id as string;
@@ -99,18 +96,11 @@ function CandidatesPage() {
     if (!newStage) return;
     const cand = candidates.find((c) => c.id === id);
     if (!cand || cand.stage === newStage) return;
-    setCandidates((prev) =>
-      prev.map((c) => (c.id === id ? { ...c, stage: newStage } : c)),
-    );
-    const { error } = await supabase
-      .from("candidates")
-      .update({ stage: newStage })
-      .eq("id", id);
+    setCandidates((prev) => prev.map((c) => (c.id === id ? { ...c, stage: newStage } : c)));
+    const { error } = await supabase.from("candidates").update({ stage: newStage }).eq("id", id);
     if (error) {
       toast.error(error.message);
-      setCandidates((prev) =>
-        prev.map((c) => (c.id === id ? { ...c, stage: cand.stage } : c)),
-      );
+      setCandidates((prev) => prev.map((c) => (c.id === id ? { ...c, stage: cand.stage } : c)));
     }
   };
 
@@ -121,9 +111,7 @@ function CandidatesPage() {
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Candidates</h1>
-          <p className="text-sm text-muted-foreground">
-            Drag a card to update its stage.
-          </p>
+          <p className="text-sm text-muted-foreground">Drag a card to update its stage.</p>
         </div>
         <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
           <DialogTrigger asChild>
@@ -136,7 +124,7 @@ function CandidatesPage() {
             customerId={currentCustomerId}
             onSaved={() => {
               setDialogOpen(false);
-              load();
+              if (currentCustomerId) load(currentCustomerId);
             }}
           />
         </Dialog>
@@ -212,15 +200,10 @@ function Column({
   );
 }
 
-function Card({
-  candidate,
-  jobTitle,
-}: {
-  candidate: Candidate;
-  jobTitle?: string;
-}) {
-  const { attributes, listeners, setNodeRef, transform, isDragging } =
-    useDraggable({ id: candidate.id });
+function Card({ candidate, jobTitle }: { candidate: Candidate; jobTitle?: string }) {
+  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
+    id: candidate.id,
+  });
   const style = transform
     ? {
         transform: `translate3d(${transform.x}px, ${transform.y}px, 0)`,
@@ -237,9 +220,7 @@ function Card({
       }`}
     >
       <div className="font-medium text-sm truncate">{candidate.name}</div>
-      <div className="text-xs text-muted-foreground truncate mt-0.5">
-        {jobTitle ?? "—"}
-      </div>
+      <div className="text-xs text-muted-foreground truncate mt-0.5">{jobTitle ?? "—"}</div>
       <div className="flex items-center gap-2 mt-2">
         {candidate.linkedin_url && (
           <a
@@ -248,6 +229,7 @@ function Card({
             rel="noreferrer"
             onClick={(e) => e.stopPropagation()}
             onPointerDown={(e) => e.stopPropagation()}
+            title="View LinkedIn profile"
             className="text-muted-foreground hover:text-foreground"
           >
             <Linkedin className="size-3.5" />
@@ -313,12 +295,7 @@ function CandidateDialog({
       <form onSubmit={onSubmit} className="space-y-4">
         <div className="space-y-1.5">
           <Label htmlFor="cname">Name</Label>
-          <Input
-            id="cname"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            required
-          />
+          <Input id="cname" value={name} onChange={(e) => setName(e.target.value)} required />
         </div>
         <div className="space-y-1.5">
           <Label htmlFor="cemail">Email</Label>
