@@ -35,13 +35,15 @@ Deno.serve(async (req) => {
     data: { user },
     error: authErr,
   } = await supabaseAdmin.auth.getUser(token);
+  console.log("[create-account] getUser:", user?.id, "authErr:", authErr?.message);
   if (authErr || !user) return json({ error: "Unauthorized" }, 401);
 
-  const { data: callerProfile } = await supabaseAdmin
+  const { data: callerProfile, error: callerProfileErr } = await supabaseAdmin
     .from("profiles")
     .select("role")
     .eq("id", user.id)
     .single();
+  console.log("[create-account] callerProfile:", JSON.stringify(callerProfile), "callerProfileErr:", callerProfileErr?.message);
   if (callerProfile?.role !== "admin") return json({ error: "Forbidden" }, 403);
 
   // --- 2. Parse and validate the body ---
