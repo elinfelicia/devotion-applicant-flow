@@ -23,8 +23,11 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Plus, Trash2, UserPlus } from "lucide-react";
+import { Plus, ShieldPlus, Trash2, UserPlus } from "lucide-react";
 import { toast } from "sonner";
+
+const SUPABASE_URL =
+  import.meta.env.VITE_SUPABASE_URL as string;
 
 export const Route = createFileRoute("/_app/customers")({
   head: () => ({ meta: [{ title: "Customers — Devotion ATS" }] }),
@@ -41,6 +44,16 @@ function CustomersPage() {
   const [saving, setSaving] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<Customer | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [accountTarget, setAccountTarget] = useState<Customer | null>(null);
+  const [accountEmail, setAccountEmail] = useState("");
+  const [accountPassword, setAccountPassword] = useState("");
+  const [accountName, setAccountName] = useState("");
+  const [creatingAccount, setCreatingAccount] = useState(false);
+  const [adminDialogOpen, setAdminDialogOpen] = useState(false);
+  const [adminEmail, setAdminEmail] = useState("");
+  const [adminPassword, setAdminPassword] = useState("");
+  const [adminName, setAdminName] = useState("");
+  const [creatingAdmin, setCreatingAdmin] = useState(false);
 
   const load = async () => {
     const { data, error } = await supabase
@@ -87,11 +100,68 @@ function CustomersPage() {
     setDeleteTarget(null);
   };
 
-  const onCreateAccount = (customerId: string) => {
-    toast.message(
-      "Stub: this will call the `create-account` edge function (service role) to create a user for this customer.",
-      { description: `customer_id: ${customerId}` },
-    );
+  const onCreateAccount = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!accountTarget) return;
+    setCreatingAccount(true);
+    const { data: sessionData } = await supabase.auth.getSession();
+    const token = sessionData.session?.access_token ?? "";
+    const res = await fetch(`${SUPABASE_URL}/functions/v1/create-account`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({
+        email: accountEmail,
+        password: accountPassword,
+        full_name: accountName || null,
+        role: "customer",
+        customer_id: accountTarget.id,
+      }),
+    });
+    setCreatingAccount(false);
+    const json = await res.json();
+    if (!res.ok) {
+      toast.error(json.error ?? "Failed to create account");
+      return;
+    }
+    toast.success(`Account created for ${accountEmail}`);
+    setAccountTarget(null);
+    setAccountEmail("");
+    setAccountPassword("");
+    setAccountName("");
+  };
+
+  const onCreateAdmin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setCreatingAdmin(true);
+    const { data: sessionData } = await supabase.auth.getSession();
+    const token = sessionData.session?.access_token ?? "";
+    const res = await fetch(`${SUPABASE_URL}/functions/v1/create-account`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({
+        email: adminEmail,
+        password: adminPassword,
+        full_name: adminName || null,
+        role: "admin",
+      }),
+    });
+    setCreatingAdmin(false);
+    const json = await res.json();
+    if (!res.ok) {
+      toast.error(json.error ?? "Failed to create admin");
+      return;
+    }
+    toast.success(`Admin account created for ${adminEmail}`);
+    setAdminDialogOpen(false);
+    setAdminEmail("");
+    setAdminPassword("");
+    setAdminName("");
   };
 
   return (
@@ -103,7 +173,11 @@ function CustomersPage() {
             Admin-only. Manage tenant customers.
           </p>
         </div>
-        <Dialog open={open} onOpenChange={setOpen}>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" onClick={() => setAdminDialogOpen(true)}>
+            <ShieldPlus className="size-4 mr-1" /> New admin
+          </Button>
+          <Dialog open={open} onOpenChange={setOpen}>
           <DialogTrigger asChild>
             <Button>
               <Plus className="size-4 mr-1" /> New customer
@@ -130,7 +204,8 @@ function CustomersPage() {
               </DialogFooter>
             </form>
           </DialogContent>
-        </Dialog>
+          </Dialog>
+        </div>
       </div>
       <div className="border rounded-lg bg-card divide-y">
         {customers.length === 0 && (
@@ -149,7 +224,7 @@ function CustomersPage() {
             <Button
               variant="outline"
               size="sm"
-              onClick={() => onCreateAccount(c.id)}
+              onClick={() => setAccountTarget(c)}
             >
               <UserPlus className="size-4 mr-1" />
               Create account
@@ -165,6 +240,103 @@ function CustomersPage() {
           </div>
         ))}
       </div>
+
+      {/* Create account dialog */}
+      <Dialog
+        open={!!accountTarget}
+        onOpenChange={(o) => !o && setAccountTarget(null)}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>
+              Create account for {accountTarget?.name}
+            </DialogTitle>
+          </DialogHeader>
+          <form onSubmit={onCreateAccount} className="space-y-4">
+            <div className="space-y-1.5">
+              <Label htmlFor="acc-name">Full name</Label>
+              <Input
+                id="acc-name"
+                value={accountName}
+                onChange={(e) => setAccountName(e.target.value)}
+                placeholder="Jane Doe"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="acc-email">Email</Label>
+              <Input
+                id="acc-email"
+                type="email"
+                value={accountEmail}
+                onChange={(e) => setAccountEmail(e.target.value)}
+                required
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="acc-pw">Password</Label>
+              <Input
+                id="acc-pw"
+                type="password"
+                value={accountPassword}
+                onChange={(e) => setAccountPassword(e.target.value)}
+                required
+                minLength={6}
+              />
+            </div>
+            <DialogFooter>
+              <Button type="submit" disabled={creatingAccount}>
+                {creatingAccount ? "Creating…" : "Create account"}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Create admin dialog */}
+      <Dialog open={adminDialogOpen} onOpenChange={setAdminDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>New admin account</DialogTitle>
+          </DialogHeader>
+          <form onSubmit={onCreateAdmin} className="space-y-4">
+            <div className="space-y-1.5">
+              <Label htmlFor="admin-name">Full name</Label>
+              <Input
+                id="admin-name"
+                value={adminName}
+                onChange={(e) => setAdminName(e.target.value)}
+                placeholder="Jane Doe"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="admin-email">Email</Label>
+              <Input
+                id="admin-email"
+                type="email"
+                value={adminEmail}
+                onChange={(e) => setAdminEmail(e.target.value)}
+                required
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="admin-pw">Password</Label>
+              <Input
+                id="admin-pw"
+                type="password"
+                value={adminPassword}
+                onChange={(e) => setAdminPassword(e.target.value)}
+                required
+                minLength={6}
+              />
+            </div>
+            <DialogFooter>
+              <Button type="submit" disabled={creatingAdmin}>
+                {creatingAdmin ? "Creating…" : "Create admin"}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
 
       <AlertDialog
         open={!!deleteTarget}
