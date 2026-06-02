@@ -108,23 +108,25 @@ function RootShell({ children }: { children: ReactNode }) {
         <HeadContent />
       </head>
       <body>
-        {children}
+        <RootProviders>{children}</RootProviders>
         <Scripts />
       </body>
     </html>
   );
 }
 
-function RootComponent() {
+function RootProviders({ children }: { children: ReactNode }) {
   const { queryClient } = Route.useRouteContext();
-
   return (
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
-        {/* Required: nested routes render here. */}
-        <Outlet />
+        {children}
         <Toaster />
       </AuthProvider>
     </QueryClientProvider>
   );
+}
+
+function RootComponent() {
+  return <Outlet />;
 }
