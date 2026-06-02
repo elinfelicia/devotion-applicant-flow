@@ -9,7 +9,8 @@
     "build:dev": "vite build --mode development",
     "preview": "vite preview",
     "lint": "eslint .",
-    "format": "prettier --write ."
+    "format": "prettier --write .",
+    "create-admin": "bun run scripts/create-admin.ts"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",

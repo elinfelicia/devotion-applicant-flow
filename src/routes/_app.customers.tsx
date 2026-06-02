@@ -13,7 +13,17 @@ import {
   DialogFooter,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { Plus, UserPlus } from "lucide-react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { Plus, Trash2, UserPlus } from "lucide-react";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/_app/customers")({
@@ -24,11 +34,13 @@ export const Route = createFileRoute("/_app/customers")({
 type Customer = { id: string; name: string; created_at: string };
 
 function CustomersPage() {
-  const { profile } = useAuth();
+  const { profile, currentCustomerId, setCurrentCustomerId } = useAuth();
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
   const [saving, setSaving] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<Customer | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   const load = async () => {
     const { data, error } = await supabase
@@ -55,6 +67,24 @@ function CustomersPage() {
     setName("");
     setOpen(false);
     load();
+  };
+
+  const onDelete = async () => {
+    if (!deleteTarget) return;
+    setDeleting(true);
+    const { error } = await supabase
+      .from("customers")
+      .delete()
+      .eq("id", deleteTarget.id);
+    setDeleting(false);
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
+    if (currentCustomerId === deleteTarget.id) setCurrentCustomerId(null);
+    setCustomers((prev) => prev.filter((c) => c.id !== deleteTarget.id));
+    toast.success(`"${deleteTarget.name}" deleted.`);
+    setDeleteTarget(null);
   };
 
   const onCreateAccount = (customerId: string) => {
@@ -124,9 +154,42 @@ function CustomersPage() {
               <UserPlus className="size-4 mr-1" />
               Create account
             </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="text-destructive hover:text-destructive"
+              onClick={() => setDeleteTarget(c)}
+            >
+              <Trash2 className="size-4" />
+            </Button>
           </div>
         ))}
       </div>
+
+      <AlertDialog
+        open={!!deleteTarget}
+        onOpenChange={(o) => !o && setDeleteTarget(null)}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete "{deleteTarget?.name}"?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently delete the customer and all associated jobs
+              and candidates. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleting}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={onDelete}
+              disabled={deleting}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {deleting ? "Deleting…" : "Delete"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
