@@ -210,14 +210,14 @@ function CustomersPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Customers</h1>
           <p className="text-sm text-muted-foreground">
             Admin-only. Manage tenant customers.
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           <Button variant="outline" onClick={() => setAdminDialogOpen(true)}>
             <ShieldPlus className="size-4 mr-1" /> New admin
           </Button>
@@ -259,37 +259,39 @@ function CustomersPage() {
           </div>
         )}
         {customers.map((c) => (
-          <div key={c.id} className="p-4 flex items-center gap-4">
+          <div key={c.id} className="p-4 flex flex-col sm:flex-row sm:items-center gap-3">
             <div className="flex-1 min-w-0">
               <div className="font-medium">{c.name}</div>
               <div className="text-xs text-muted-foreground font-mono truncate">
                 {c.id}
               </div>
             </div>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => onManageAccounts(c)}
-            >
-              <Users className="size-4 mr-1" />
-              Accounts
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setAccountTarget(c)}
-            >
-              <UserPlus className="size-4 mr-1" />
-              Add account
-            </Button>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="text-destructive hover:text-destructive"
-              onClick={() => setDeleteTarget(c)}
-            >
-              <Trash2 className="size-4" />
-            </Button>
+            <div className="flex items-center gap-2 flex-wrap">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => onManageAccounts(c)}
+              >
+                <Users className="size-4 mr-1" />
+                Accounts
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setAccountTarget(c)}
+              >
+                <UserPlus className="size-4 mr-1" />
+                Add account
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="text-destructive hover:text-destructive"
+                onClick={() => setDeleteTarget(c)}
+              >
+                <Trash2 className="size-4" />
+              </Button>
+            </div>
           </div>
         ))}
       </div>
