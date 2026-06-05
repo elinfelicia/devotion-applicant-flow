@@ -24,7 +24,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Plus, ShieldPlus, Trash2, UserPlus } from "lucide-react";
+import { Plus, ShieldPlus, Trash2, UserPlus, Users } from "lucide-react";
 import { toast } from "sonner";
 
 const SUPABASE_URL =
@@ -55,6 +55,12 @@ function CustomersPage() {
   const [adminPassword, setAdminPassword] = useState("");
   const [adminName, setAdminName] = useState("");
   const [creatingAdmin, setCreatingAdmin] = useState(false);
+
+  type AccountProfile = { id: string; full_name: string | null; email: string | null };
+  const [manageTarget, setManageTarget] = useState<Customer | null>(null);
+  const [accounts, setAccounts] = useState<AccountProfile[]>([]);
+  const [loadingAccounts, setLoadingAccounts] = useState(false);
+  const [deletingAccountId, setDeletingAccountId] = useState<string | null>(null);
 
   const load = async () => {
     const { data, error } = await supabase
@@ -132,6 +138,43 @@ function CustomersPage() {
     setAccountEmail("");
     setAccountPassword("");
     setAccountName("");
+  };
+
+  const loadAccounts = async (customerId: string) => {
+    setLoadingAccounts(true);
+    const { data } = await supabase
+      .from("profiles")
+      .select("id, full_name, email")
+      .eq("customer_id", customerId)
+      .eq("role", "customer")
+      .order("full_name");
+    setAccounts((data as AccountProfile[]) ?? []);
+    setLoadingAccounts(false);
+  };
+
+  const onManageAccounts = (customer: Customer) => {
+    setManageTarget(customer);
+    loadAccounts(customer.id);
+  };
+
+  const onDeleteAccount = async (userId: string) => {
+    if (!confirm("Remove this account? The user will no longer be able to log in.")) return;
+    setDeletingAccountId(userId);
+    const { data: sessionData } = await supabase.auth.getSession();
+    const token = sessionData.session?.access_token ?? "";
+    const res = await fetch(`${SUPABASE_URL}/functions/v1/delete-account`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ user_id: userId }),
+    });
+    setDeletingAccountId(null);
+    const json = await res.json();
+    if (!res.ok) {
+      toast.error(json.error ?? "Failed to delete account");
+      return;
+    }
+    toast.success("Account removed.");
+    setAccounts((prev) => prev.filter((a) => a.id !== userId));
   };
 
   const onCreateAdmin = async (e: React.FormEvent) => {
@@ -226,10 +269,18 @@ function CustomersPage() {
             <Button
               variant="outline"
               size="sm"
+              onClick={() => onManageAccounts(c)}
+            >
+              <Users className="size-4 mr-1" />
+              Accounts
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
               onClick={() => setAccountTarget(c)}
             >
               <UserPlus className="size-4 mr-1" />
-              Create account
+              Add account
             </Button>
             <Button
               variant="ghost"
@@ -339,6 +390,56 @@ function CustomersPage() {
               </Button>
             </DialogFooter>
           </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Manage accounts dialog */}
+      <Dialog open={!!manageTarget} onOpenChange={(o) => !o && setManageTarget(null)}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Accounts — {manageTarget?.name}</DialogTitle>
+            <DialogDescription>
+              All customer accounts linked to this workspace.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2 min-h-[60px]">
+            {loadingAccounts && (
+              <p className="text-sm text-muted-foreground">Loading…</p>
+            )}
+            {!loadingAccounts && accounts.length === 0 && (
+              <p className="text-sm text-muted-foreground">No accounts yet.</p>
+            )}
+            {accounts.map((a) => (
+              <div key={a.id} className="flex items-center justify-between gap-3 p-2 rounded-md border bg-muted/30">
+                <div className="min-w-0">
+                  {a.full_name && (
+                    <div className="text-sm font-medium truncate">{a.full_name}</div>
+                  )}
+                  <div className="text-xs text-muted-foreground truncate">{a.email}</div>
+                </div>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="text-destructive hover:text-destructive shrink-0"
+                  disabled={deletingAccountId === a.id}
+                  onClick={() => onDeleteAccount(a.id)}
+                >
+                  <Trash2 className="size-4" />
+                </Button>
+              </div>
+            ))}
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setManageTarget(null);
+                setAccountTarget(manageTarget);
+              }}
+            >
+              <UserPlus className="size-4 mr-1" /> Add account
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 
