@@ -62,9 +62,8 @@ Deno.serve(async (req) => {
   );
 
   if (!candidateRes.ok) {
-    const detail = await candidateRes.text();
-    console.error("[assess-candidate] candidate fetch failed:", candidateRes.status, detail);
-    return json({ error: "Candidate not found", detail }, 404);
+    console.error("[assess-candidate] candidate fetch failed:", candidateRes.status, await candidateRes.text());
+    return json({ error: "Candidate not found" }, 404);
   }
 
   const candidate = await candidateRes.json();
@@ -149,9 +148,8 @@ Rules:
   );
 
   if (!updateRes.ok) {
-    const detail = await updateRes.text();
-    console.error("[assess-candidate] DB update error:", detail);
-    return json({ error: "Failed to save assessment", detail }, 500);
+    console.error("[assess-candidate] DB update error:", await updateRes.text());
+    return json({ error: "Failed to save assessment" }, 500);
   }
 
   return json({ assessment: parsed });

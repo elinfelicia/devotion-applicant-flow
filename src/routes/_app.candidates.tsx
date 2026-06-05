@@ -281,7 +281,6 @@ function Card({
       });
       const json = await res.json();
       if (!res.ok) {
-        console.error("assess-candidate error response:", json);
         toast.error(json.error ?? "Assessment failed");
         return;
       }
