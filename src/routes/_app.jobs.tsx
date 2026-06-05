@@ -10,6 +10,7 @@ import { Textarea } from "@/components/ui/textarea";
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
   DialogFooter,
@@ -203,6 +204,9 @@ function JobDialog({
     <DialogContent>
       <DialogHeader>
         <DialogTitle>{job ? "Edit job" : "New job"}</DialogTitle>
+        <DialogDescription>
+          {job ? "Update the job details below." : "Fill in the details to create a new job posting."}
+        </DialogDescription>
       </DialogHeader>
       <form onSubmit={onSubmit} className="space-y-4">
         <div className="space-y-1.5">

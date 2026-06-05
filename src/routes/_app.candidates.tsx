@@ -15,9 +15,11 @@ import { NoCustomerSelected } from "@/components/AppShell";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
   DialogFooter,
@@ -30,22 +32,34 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Linkedin, Plus, Sparkles } from "lucide-react";
+import { Linkedin, Plus, RefreshCw, Sparkles, ThumbsDown, ThumbsUp, Minus } from "lucide-react";
 import { toast } from "sonner";
+
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL as string;
 
 export const Route = createFileRoute("/_app/candidates")({
   head: () => ({ meta: [{ title: "Candidates — Devotion ATS" }] }),
   component: CandidatesPage,
 });
 
+type Assessment = {
+  summary: string;
+  strengths: string[];
+  concerns: string[];
+  score: number;
+  recommendation: "Proceed" | "Maybe" | "Pass";
+};
+
 type Candidate = {
   id: string;
   name: string;
   email: string | null;
   linkedin_url: string | null;
+  notes: string | null;
   job_id: string;
   stage: string;
   customer_id: string;
+  ai_assessment: Assessment | null;
 };
 
 type Job = { id: string; title: string };
@@ -104,6 +118,12 @@ function CandidatesPage() {
     }
   };
 
+  const onAssessmentUpdate = (id: string, assessment: Assessment) => {
+    setCandidates((prev) =>
+      prev.map((c) => (c.id === id ? { ...c, ai_assessment: assessment } : c)),
+    );
+  };
+
   if (!currentCustomerId) return <NoCustomerSelected />;
 
   return (
@@ -160,6 +180,7 @@ function CandidatesPage() {
               stage={stage}
               candidates={filtered.filter((c) => c.stage === stage)}
               jobsById={jobsById}
+              onAssessmentUpdate={onAssessmentUpdate}
             />
           ))}
         </div>
@@ -172,10 +193,12 @@ function Column({
   stage,
   candidates,
   jobsById,
+  onAssessmentUpdate,
 }: {
   stage: Stage;
   candidates: Candidate[];
   jobsById: Record<string, string>;
+  onAssessmentUpdate: (id: string, assessment: Assessment) => void;
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: stage });
   return (
@@ -193,59 +216,234 @@ function Column({
       </div>
       <div className="flex flex-col gap-2">
         {candidates.map((c) => (
-          <Card key={c.id} candidate={c} jobTitle={jobsById[c.job_id]} />
+          <Card
+            key={c.id}
+            candidate={c}
+            jobTitle={jobsById[c.job_id]}
+            onAssessmentUpdate={onAssessmentUpdate}
+          />
         ))}
       </div>
     </div>
   );
 }
 
-function Card({ candidate, jobTitle }: { candidate: Candidate; jobTitle?: string }) {
+function recommendationStyle(rec: Assessment["recommendation"]) {
+  if (rec === "Proceed") return "bg-green-100 text-green-800 border-green-200";
+  if (rec === "Maybe") return "bg-yellow-100 text-yellow-800 border-yellow-200";
+  return "bg-red-100 text-red-800 border-red-200";
+}
+
+function recommendationIcon(rec: Assessment["recommendation"]) {
+  if (rec === "Proceed") return <ThumbsUp className="size-3" />;
+  if (rec === "Maybe") return <Minus className="size-3" />;
+  return <ThumbsDown className="size-3" />;
+}
+
+function scoreColor(score: number) {
+  if (score >= 7) return "text-green-700";
+  if (score >= 5) return "text-yellow-700";
+  return "text-red-700";
+}
+
+function Card({
+  candidate,
+  jobTitle,
+  onAssessmentUpdate,
+}: {
+  candidate: Candidate;
+  jobTitle?: string;
+  onAssessmentUpdate: (id: string, assessment: Assessment) => void;
+}) {
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
     id: candidate.id,
   });
+  const [assessing, setAssessing] = useState(false);
+  const [dialogOpen, setDialogOpen] = useState(false);
+
   const style = transform
-    ? {
-        transform: `translate3d(${transform.x}px, ${transform.y}px, 0)`,
-      }
+    ? { transform: `translate3d(${transform.x}px, ${transform.y}px, 0)` }
     : undefined;
+
+  const runAssessment = async (e: React.PointerEvent) => {
+    e.stopPropagation();
+    setAssessing(true);
+    try {
+      const { data: sessionData } = await supabase.auth.getSession();
+      const token = sessionData.session?.access_token ?? "";
+      const res = await fetch(`${SUPABASE_URL}/functions/v1/assess-candidate`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ candidate_id: candidate.id }),
+      });
+      const json = await res.json();
+      if (!res.ok) {
+        console.error("assess-candidate error response:", json);
+        toast.error(json.error ?? "Assessment failed");
+        return;
+      }
+      onAssessmentUpdate(candidate.id, json.assessment as Assessment);
+      setDialogOpen(true);
+    } catch {
+      toast.error("Assessment failed — check your network connection");
+    } finally {
+      setAssessing(false);
+    }
+  };
+
+  const openExisting = (e: React.PointerEvent) => {
+    e.stopPropagation();
+    setDialogOpen(true);
+  };
+
+  const assessment = candidate.ai_assessment;
+
   return (
-    <div
-      ref={setNodeRef}
-      style={style}
-      {...listeners}
-      {...attributes}
-      className={`bg-card border rounded-md p-3 shadow-sm cursor-grab active:cursor-grabbing select-none ${
-        isDragging ? "opacity-50" : ""
-      }`}
-    >
-      <div className="font-medium text-sm truncate">{candidate.name}</div>
-      <div className="text-xs text-muted-foreground truncate mt-0.5">{jobTitle ?? "—"}</div>
-      <div className="flex items-center gap-2 mt-2">
-        {candidate.linkedin_url && (
-          <a
-            href={candidate.linkedin_url}
-            target="_blank"
-            rel="noreferrer"
-            onClick={(e) => e.stopPropagation()}
-            onPointerDown={(e) => e.stopPropagation()}
-            title="View LinkedIn profile"
-            className="text-muted-foreground hover:text-foreground"
-          >
-            <Linkedin className="size-3.5" />
-          </a>
+    <>
+      <div
+        ref={setNodeRef}
+        style={style}
+        {...listeners}
+        {...attributes}
+        className={`bg-card border rounded-md p-3 shadow-sm cursor-grab active:cursor-grabbing select-none ${
+          isDragging ? "opacity-50" : ""
+        }`}
+      >
+        <div className="font-medium text-sm truncate">{candidate.name}</div>
+        <div className="text-xs text-muted-foreground truncate mt-0.5">{jobTitle ?? "—"}</div>
+        {assessment && (
+          <div className="flex items-center gap-1.5 mt-1.5">
+            <span
+              className={`inline-flex items-center gap-1 text-[10px] border rounded px-1.5 py-0.5 font-medium ${recommendationStyle(assessment.recommendation)}`}
+            >
+              {recommendationIcon(assessment.recommendation)}
+              {assessment.recommendation}
+            </span>
+            <span className={`text-[10px] font-semibold ${scoreColor(assessment.score)}`}>
+              {assessment.score}/10
+            </span>
+          </div>
         )}
-        <button
-          type="button"
-          disabled
-          title="Coming soon"
-          onPointerDown={(e) => e.stopPropagation()}
-          className="ml-auto inline-flex items-center gap-1 text-[10px] text-muted-foreground border rounded px-1.5 py-0.5 opacity-60 cursor-not-allowed"
-        >
-          <Sparkles className="size-3" />
-          Assess CV
-        </button>
+        <div className="flex items-center gap-2 mt-2">
+          {candidate.linkedin_url && (
+            <a
+              href={candidate.linkedin_url}
+              target="_blank"
+              rel="noreferrer"
+              onClick={(e) => e.stopPropagation()}
+              onPointerDown={(e) => e.stopPropagation()}
+              title="View LinkedIn profile"
+              className="text-muted-foreground hover:text-foreground"
+            >
+              <Linkedin className="size-3.5" />
+            </a>
+          )}
+          <button
+            type="button"
+            onPointerDown={assessment ? openExisting : runAssessment}
+            disabled={assessing}
+            title={assessment ? "View AI assessment" : "Assess with AI"}
+            className={`ml-auto inline-flex items-center gap-1 text-[10px] border rounded px-1.5 py-0.5 transition-colors ${
+              assessing
+                ? "text-muted-foreground opacity-60 cursor-wait"
+                : assessment
+                  ? "text-purple-700 border-purple-200 bg-purple-50 hover:bg-purple-100"
+                  : "text-muted-foreground hover:text-foreground hover:bg-muted"
+            }`}
+          >
+            {assessing ? (
+              <RefreshCw className="size-3 animate-spin" />
+            ) : (
+              <Sparkles className="size-3" />
+            )}
+            {assessing ? "Assessing…" : assessment ? "View assessment" : "Assess CV"}
+          </button>
+        </div>
       </div>
+
+      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Sparkles className="size-4 text-purple-600" />
+              AI Assessment — {candidate.name}
+            </DialogTitle>
+            <DialogDescription>
+              AI-generated assessment based on the candidate's CV and job requirements.
+            </DialogDescription>
+          </DialogHeader>
+          {assessment && <AssessmentView assessment={assessment} />}
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button variant="outline" size="sm" disabled={assessing} onPointerDown={runAssessment}>
+              {assessing ? (
+                <>
+                  <RefreshCw className="size-3 mr-1 animate-spin" /> Re-assessing…
+                </>
+              ) : (
+                <>
+                  <RefreshCw className="size-3 mr-1" /> Re-assess
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
+  );
+}
+
+function AssessmentView({ assessment }: { assessment: Assessment }) {
+  return (
+    <div className="space-y-4 text-sm">
+      <div className="flex items-center gap-3">
+        <span
+          className={`inline-flex items-center gap-1.5 text-xs font-medium border rounded-full px-3 py-1 ${recommendationStyle(assessment.recommendation)}`}
+        >
+          {recommendationIcon(assessment.recommendation)}
+          {assessment.recommendation}
+        </span>
+        <span className={`text-lg font-bold ${scoreColor(assessment.score)}`}>
+          {assessment.score}
+          <span className="text-xs font-normal text-muted-foreground">/10</span>
+        </span>
+      </div>
+
+      <p className="text-muted-foreground leading-relaxed">{assessment.summary}</p>
+
+      {assessment.strengths.length > 0 && (
+        <div>
+          <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-1.5">
+            Strengths
+          </div>
+          <ul className="space-y-1">
+            {assessment.strengths.map((s, i) => (
+              <li key={i} className="flex items-start gap-2">
+                <span className="mt-1.5 size-1.5 rounded-full bg-green-500 shrink-0" />
+                {s}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {assessment.concerns.length > 0 && (
+        <div>
+          <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-1.5">
+            Concerns
+          </div>
+          <ul className="space-y-1">
+            {assessment.concerns.map((c, i) => (
+              <li key={i} className="flex items-start gap-2">
+                <span className="mt-1.5 size-1.5 rounded-full bg-yellow-500 shrink-0" />
+                {c}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
     </div>
   );
 }
@@ -262,6 +460,7 @@ function CandidateDialog({
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [linkedin, setLinkedin] = useState("");
+  const [notes, setNotes] = useState("");
   const [jobId, setJobId] = useState<string>(jobs[0]?.id ?? "");
   const [stage, setStage] = useState<Stage>("Ny");
   const [saving, setSaving] = useState(false);
@@ -274,6 +473,7 @@ function CandidateDialog({
       name,
       email: email || null,
       linkedin_url: linkedin || null,
+      notes: notes || null,
       job_id: jobId,
       stage,
       customer_id: customerId,
@@ -283,6 +483,7 @@ function CandidateDialog({
     setName("");
     setEmail("");
     setLinkedin("");
+    setNotes("");
     setStage("Ny");
     onSaved();
   };
@@ -291,6 +492,9 @@ function CandidateDialog({
     <DialogContent>
       <DialogHeader>
         <DialogTitle>Add candidate</DialogTitle>
+        <DialogDescription>
+          Fill in the candidate's details. Paste their CV into the notes field for AI assessment.
+        </DialogDescription>
       </DialogHeader>
       <form onSubmit={onSubmit} className="space-y-4">
         <div className="space-y-1.5">
@@ -313,6 +517,16 @@ function CandidateDialog({
             value={linkedin}
             onChange={(e) => setLinkedin(e.target.value)}
             placeholder="https://linkedin.com/in/…"
+          />
+        </div>
+        <div className="space-y-1.5">
+          <Label htmlFor="cnotes">CV / Notes</Label>
+          <Textarea
+            id="cnotes"
+            value={notes}
+            onChange={(e) => setNotes(e.target.value)}
+            placeholder="Paste CV text, key experience, or any notes for the AI to assess…"
+            rows={4}
           />
         </div>
         <div className="grid grid-cols-2 gap-3">

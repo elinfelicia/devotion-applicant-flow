@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label";
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
   DialogFooter,
@@ -186,6 +187,7 @@ function CustomersPage() {
           <DialogContent>
             <DialogHeader>
               <DialogTitle>New customer</DialogTitle>
+              <DialogDescription>Enter a name to create a new customer workspace.</DialogDescription>
             </DialogHeader>
             <form onSubmit={onCreate} className="space-y-4">
               <div className="space-y-1.5">
@@ -251,6 +253,7 @@ function CustomersPage() {
             <DialogTitle>
               Create account for {accountTarget?.name}
             </DialogTitle>
+            <DialogDescription>Set up login credentials for this customer.</DialogDescription>
           </DialogHeader>
           <form onSubmit={onCreateAccount} className="space-y-4">
             <div className="space-y-1.5">
@@ -297,6 +300,7 @@ function CustomersPage() {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>New admin account</DialogTitle>
+            <DialogDescription>Create a new administrator account with full access.</DialogDescription>
           </DialogHeader>
           <form onSubmit={onCreateAdmin} className="space-y-4">
             <div className="space-y-1.5">
