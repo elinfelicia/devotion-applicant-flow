@@ -1,0 +1,9 @@
+
+
+[build]
+  command = "npm run build"
+
+[build.environment]
+  NITRO_PRESET = "netlify"
+  # Node 20+ rekommenderas för Vite 7 / Nitro v3.
+  NODE_VERSION = "20"
