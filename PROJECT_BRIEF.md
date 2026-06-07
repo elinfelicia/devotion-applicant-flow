@@ -62,13 +62,10 @@ Minimikrav: berätta i demon hur du hade angripit problemet.
 - [x] Kandidater: lägga till kandidater med LinkedIn-länk och profilinformation
 - [x] Kanban-vy med kandidater per stage
 - [x] Filtrera kanban på jobb & kandidatnamn
+- [x] Admin: skapa kund-konton via UI (knappen "Create account" är stub)
+- [x] AI-bedömning av kandidat-CV
+- [x] Demo-video (Loom)
 
-### Återstår / pågår
-
-- [ ] Admin: skapa kund-konton via UI (knappen "Create account" är stub)
-- [ ] AI-bedömning av kandidat-CV
-- [ ] Demo-video (Loom)
-- [ ] Slutlig leverans via mejl
 
 ---
 
