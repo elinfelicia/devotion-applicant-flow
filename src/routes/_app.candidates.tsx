@@ -32,7 +32,16 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Linkedin, Plus, RefreshCw, Sparkles, ThumbsDown, ThumbsUp, Minus } from "lucide-react";
+import {
+  Linkedin,
+  Pencil,
+  Plus,
+  RefreshCw,
+  Sparkles,
+  ThumbsDown,
+  ThumbsUp,
+  Minus,
+} from "lucide-react";
 import { toast } from "sonner";
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL as string;
@@ -124,6 +133,10 @@ function CandidatesPage() {
     );
   };
 
+  const onCandidateUpdate = (updated: Candidate) => {
+    setCandidates((prev) => prev.map((c) => (c.id === updated.id ? updated : c)));
+  };
+
   if (!currentCustomerId) return <NoCustomerSelected />;
 
   return (
@@ -180,7 +193,9 @@ function CandidatesPage() {
               stage={stage}
               candidates={filtered.filter((c) => c.stage === stage)}
               jobsById={jobsById}
+              jobs={jobs}
               onAssessmentUpdate={onAssessmentUpdate}
+              onCandidateUpdate={onCandidateUpdate}
             />
           ))}
         </div>
@@ -193,12 +208,16 @@ function Column({
   stage,
   candidates,
   jobsById,
+  jobs,
   onAssessmentUpdate,
+  onCandidateUpdate,
 }: {
   stage: Stage;
   candidates: Candidate[];
   jobsById: Record<string, string>;
+  jobs: Job[];
   onAssessmentUpdate: (id: string, assessment: Assessment) => void;
+  onCandidateUpdate: (updated: Candidate) => void;
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: stage });
   return (
@@ -220,7 +239,9 @@ function Column({
             key={c.id}
             candidate={c}
             jobTitle={jobsById[c.job_id]}
+            jobs={jobs}
             onAssessmentUpdate={onAssessmentUpdate}
+            onCandidateUpdate={onCandidateUpdate}
           />
         ))}
       </div>
@@ -249,17 +270,22 @@ function scoreColor(score: number) {
 function Card({
   candidate,
   jobTitle,
+  jobs,
   onAssessmentUpdate,
+  onCandidateUpdate,
 }: {
   candidate: Candidate;
   jobTitle?: string;
+  jobs: Job[];
   onAssessmentUpdate: (id: string, assessment: Assessment) => void;
+  onCandidateUpdate: (updated: Candidate) => void;
 }) {
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
     id: candidate.id,
   });
   const [assessing, setAssessing] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [editOpen, setEditOpen] = useState(false);
 
   const style = transform
     ? { transform: `translate3d(${transform.x}px, ${transform.y}px, 0)` }
@@ -311,8 +337,23 @@ function Card({
           isDragging ? "opacity-50" : ""
         }`}
       >
-        <div className="font-medium text-sm truncate">{candidate.name}</div>
-        <div className="text-xs text-muted-foreground truncate mt-0.5">{jobTitle ?? "—"}</div>
+        <div className="flex items-start justify-between gap-1">
+          <div className="min-w-0">
+            <div className="font-medium text-sm truncate">{candidate.name}</div>
+            <div className="text-xs text-muted-foreground truncate mt-0.5">{jobTitle ?? "—"}</div>
+          </div>
+          <button
+            type="button"
+            onPointerDown={(e) => {
+              e.stopPropagation();
+              setEditOpen(true);
+            }}
+            title="Edit candidate"
+            className="shrink-0 text-muted-foreground hover:text-foreground transition-colors p-0.5 rounded"
+          >
+            <Pencil className="size-3" />
+          </button>
+        </div>
         {assessment && (
           <div className="flex items-center gap-1.5 mt-1.5">
             <span
@@ -390,6 +431,18 @@ function Card({
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <Dialog open={editOpen} onOpenChange={setEditOpen}>
+        <CandidateDialog
+          jobs={jobs}
+          customerId={candidate.customer_id}
+          candidate={candidate}
+          onSaved={(updated) => {
+            onCandidateUpdate(updated);
+            setEditOpen(false);
+          }}
+        />
+      </Dialog>
     </>
   );
 }
@@ -450,49 +503,78 @@ function AssessmentView({ assessment }: { assessment: Assessment }) {
 function CandidateDialog({
   jobs,
   customerId,
+  candidate,
   onSaved,
 }: {
   jobs: Job[];
   customerId: string;
-  onSaved: () => void;
+  candidate?: Candidate;
+  onSaved: (updated: Candidate) => void;
 }) {
-  const [name, setName] = useState("");
-  const [email, setEmail] = useState("");
-  const [linkedin, setLinkedin] = useState("");
-  const [notes, setNotes] = useState("");
-  const [jobId, setJobId] = useState<string>(jobs[0]?.id ?? "");
-  const [stage, setStage] = useState<Stage>("Ny");
+  const [name, setName] = useState(candidate?.name ?? "");
+  const [email, setEmail] = useState(candidate?.email ?? "");
+  const [linkedin, setLinkedin] = useState(candidate?.linkedin_url ?? "");
+  const [notes, setNotes] = useState(candidate?.notes ?? "");
+  const [jobId, setJobId] = useState<string>(candidate?.job_id ?? jobs[0]?.id ?? "");
+  const [stage, setStage] = useState<Stage>((candidate?.stage as Stage) ?? "Ny");
   const [saving, setSaving] = useState(false);
+
+  const isEdit = !!candidate;
 
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!jobId) return toast.error("Select a job");
     setSaving(true);
-    const { error } = await supabase.from("candidates").insert({
-      name,
-      email: email || null,
-      linkedin_url: linkedin || null,
-      notes: notes || null,
-      job_id: jobId,
-      stage,
-      customer_id: customerId,
-    });
-    setSaving(false);
-    if (error) return toast.error(error.message);
-    setName("");
-    setEmail("");
-    setLinkedin("");
-    setNotes("");
-    setStage("Ny");
-    onSaved();
+    if (isEdit) {
+      const { data, error } = await supabase
+        .from("candidates")
+        .update({
+          name,
+          email: email || null,
+          linkedin_url: linkedin || null,
+          notes: notes || null,
+          job_id: jobId,
+          stage,
+        })
+        .eq("id", candidate.id)
+        .select()
+        .single();
+      setSaving(false);
+      if (error) return toast.error(error.message);
+      onSaved(data as Candidate);
+    } else {
+      const { data, error } = await supabase
+        .from("candidates")
+        .insert({
+          name,
+          email: email || null,
+          linkedin_url: linkedin || null,
+          notes: notes || null,
+          job_id: jobId,
+          stage,
+          customer_id: customerId,
+        })
+        .select()
+        .single();
+      setSaving(false);
+      if (error) return toast.error(error.message);
+      setName("");
+      setEmail("");
+      setLinkedin("");
+      setNotes("");
+      setStage("Ny");
+      onSaved(data as Candidate);
+    }
   };
 
   return (
     <DialogContent>
       <DialogHeader>
-        <DialogTitle>Add candidate</DialogTitle>
+        <DialogTitle>{isEdit ? "Edit candidate" : "Add candidate"}</DialogTitle>
         <DialogDescription>
-          Fill in the candidate's details. Paste their CV into the notes field for AI assessment.
+          {isEdit
+            ? "Update the candidate's details. Changes to CV / Notes will be used in the next AI assessment."
+            : "Fill in the candidate's details. Paste their CV into the notes field for AI assessment."}
         </DialogDescription>
       </DialogHeader>
       <form onSubmit={onSubmit} className="space-y-4">
@@ -562,7 +644,7 @@ function CandidateDialog({
         </div>
         <DialogFooter>
           <Button type="submit" disabled={saving}>
-            {saving ? "Saving…" : "Add candidate"}
+            {saving ? "Saving…" : isEdit ? "Save changes" : "Add candidate"}
           </Button>
         </DialogFooter>
       </form>
