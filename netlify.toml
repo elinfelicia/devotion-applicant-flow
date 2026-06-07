@@ -2,8 +2,17 @@
 
 [build]
   command = "bun run build"
+  publish = ".output/public"
 
 [build.environment]
   NITRO_PRESET = "netlify"
   # Node 20+ rekommenderas för Vite 7 / Nitro v3.
   NODE_VERSION = "20"
+
+# Route all requests through the Nitro SSR function.
+# Static assets in .output/public are served directly by Netlify CDN;
+# everything else falls through to the server function.
+[[redirects]]
+  from = "/*"
+  to = "/.netlify/functions/server"
+  status = 200
