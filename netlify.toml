@@ -1,17 +1,27 @@
-
+# Netlify build configuration for TanStack Start (SSR via Nitro).
+#
+# Nitro (preset: "netlify") builds:
+#   - dist/client/   → static assets served by Netlify CDN
+#   - dist/server/   → SSR server entry (main.mjs, Netlify V2 function format)
+#
+# netlify/functions/server.mjs re-exports main.mjs; esbuild bundles it inline.
+# All non-static requests are routed to that function via the redirect below.
+#
+# NEVER put secret keys in this file — set them in Netlify dashboard under
+# Site configuration → Environment variables.
 
 [build]
   command = "bun run build"
-  publish = ".output/public"
+  publish = "dist/client"
 
 [build.environment]
-  NITRO_PRESET = "netlify"
-  # Node 20+ rekommenderas för Vite 7 / Nitro v3.
   NODE_VERSION = "20"
 
-# Route all requests through the Nitro SSR function.
-# Static assets in .output/public are served directly by Netlify CDN;
-# everything else falls through to the server function.
+[functions]
+  node_bundler = "esbuild"
+
+# Route all non-static requests through the Nitro SSR function.
+# Static assets in dist/client/ are served directly by Netlify CDN.
 [[redirects]]
   from = "/*"
   to = "/.netlify/functions/server"
