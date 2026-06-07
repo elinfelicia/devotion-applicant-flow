@@ -85,6 +85,10 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { property: "og:description", content: "Applicant tracking system by Devotion Ventures" },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
+      { name: "twitter:title", content: "Devotion ATS" },
+      { name: "twitter:description", content: "Applicant tracking system by Devotion Ventures" },
+      { property: "og:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/d314c5c6-201b-4625-8828-790db0e44ddb/id-preview-5f85820c--f5555a78-9db6-4a3f-b131-31234849d865.lovable.app-1780818372985.png" },
+      { name: "twitter:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/d314c5c6-201b-4625-8828-790db0e44ddb/id-preview-5f85820c--f5555a78-9db6-4a3f-b131-31234849d865.lovable.app-1780818372985.png" },
     ],
     links: [
       {
